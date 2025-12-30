@@ -37,10 +37,16 @@ cargo run
 cargo test --lib
 ```
 
-## Running Window Test
+## Running Tests
 
+**Window Test** (shows blue-gray background):
 ```bash
 cargo run --bin window_test
+```
+
+**Rectangle Test** (shows colored rectangles):
+```bash
+cargo run --bin rect_test
 ```
 
 ## Project Structure
@@ -76,12 +82,19 @@ src/
 - ✓ Window resize handling
 - ✓ Event loop integration
 
+**Display List & Rectangle Rendering** ✓
+
+- ✓ Display list generation from layout tree
+- ✓ WGSL shader pipeline for rectangles
+- ✓ GPU-accelerated rectangle rendering
+- ✓ Color and alpha blending support
+- ✓ Viewport culling
+
 **Next Steps:**
-- Display list generation from layout tree
-- Rectangle rendering with colors
 - Border rendering
 - Text rendering with font support
 - Image decoding and display
+- Scrolling support
 
 ## Architecture
 

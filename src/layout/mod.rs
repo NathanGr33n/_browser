@@ -81,7 +81,7 @@ impl<'a> LayoutBox<'a> {
     }
 
     /// Get the styled node for this box
-    fn get_styled_node(&self) -> Option<&'a StyledNode<'a>> {
+    pub fn get_styled_node(&self) -> Option<&'a StyledNode<'a>> {
         match &self.box_type {
             BoxType::BlockNode(node) | BoxType::InlineNode(node) => Some(node),
             BoxType::AnonymousBlock => None,

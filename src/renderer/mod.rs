@@ -1,9 +1,15 @@
+mod painter;
+
 use wgpu::{
     Adapter, Device, Instance, Queue, Surface, SurfaceConfiguration, TextureFormat,
     PresentMode, CompositeAlphaMode,
 };
 use winit::window::Window;
 use std::sync::Arc;
+
+pub use painter::RectPainter;
+use crate::css::Color;
+use crate::layout::Rect;
 
 /// GPU-accelerated renderer using wgpu
 pub struct Renderer<'window> {
@@ -12,6 +18,7 @@ pub struct Renderer<'window> {
     queue: Queue,
     config: SurfaceConfiguration,
     size: (u32, u32),
+    rect_painter: RectPainter,
 }
 
 impl<'window> Renderer<'window> {
@@ -61,12 +68,16 @@ impl<'window> Renderer<'window> {
 
         surface.configure(&device, &config);
 
+        // Create rectangle painter
+        let rect_painter = RectPainter::new(&device, surface_format);
+
         Ok(Self {
             surface,
             device,
             queue,
             config,
             size: (size.width, size.height),
+            rect_painter,
         })
     }
 
@@ -199,6 +210,37 @@ impl<'window> Renderer<'window> {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
+        })
+    }
+
+    /// Render rectangles from a display list
+    pub fn render_rects(&mut self, rects: &[(Rect, Color)]) -> Result<(), RendererError> {
+        // Prepare rectangle data
+        self.rect_painter.prepare(&self.device, &self.queue, rects, self.size);
+
+        // Render
+        self.render(|_device, _queue, view, encoder| {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Rectangle Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 1.0,
+                            g: 1.0,
+                            b: 1.0,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            self.rect_painter.render(&mut render_pass);
         })
     }
 }

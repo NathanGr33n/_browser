@@ -3,6 +3,7 @@ use html5ever::parse_document;
 use html5ever::tendril::TendrilSink;
 use html5ever::tree_builder::{TreeSink, QuirksMode, NodeOrText, ElementFlags};
 use html5ever::{QualName, Attribute, ExpandedName};
+use markup5ever::{LocalName, Namespace};
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -14,7 +15,7 @@ impl HtmlParser {
     pub fn parse(source: &str) -> Node {
         let sink = DomTreeSink::new();
         let parser = parse_document(sink, Default::default());
-        let mut dom_sink = parser.one(source);
+        let dom_sink = parser.one(source);
         
         dom_sink.finish()
     }
@@ -36,7 +37,7 @@ struct DomNode {
 #[derive(Clone)]
 enum DomNodeType {
     Document,
-    Element { name: String, attrs: AttrMap },
+    Element { local_name: LocalName, namespace: Namespace, attrs: AttrMap },
     Text(String),
     Comment(String),
 }
@@ -80,8 +81,8 @@ impl DomTreeSink {
                     Node::element("html".to_string(), HashMap::new(), vec![])
                 }
             }
-            DomNodeType::Element { name, attrs } => {
-                Node::element(name.clone(), attrs.clone(), children)
+            DomNodeType::Element { local_name, namespace: _, attrs } => {
+                Node::element(local_name.to_string(), attrs.clone(), children)
             }
             DomNodeType::Text(text) => Node::text(text.clone()),
             DomNodeType::Comment(text) => Node::comment(text.clone()),
@@ -111,10 +112,10 @@ impl TreeSink for DomTreeSink {
 
     fn elem_name<'a>(&'a self, target: &'a usize) -> ExpandedName<'a> {
         match &self.nodes[*target].node_type {
-            DomNodeType::Element { name, .. } => {
+            DomNodeType::Element { local_name, namespace, .. } => {
                 ExpandedName {
-                    ns: &html5ever::ns!(html),
-                    local: name.as_str().into(),
+                    ns: namespace,
+                    local: local_name,
                 }
             }
             _ => panic!("not an element"),
@@ -135,7 +136,8 @@ impl TreeSink for DomTreeSink {
         let parent = self.root;
         self.add_node(
             DomNodeType::Element {
-                name: name.local.to_string(),
+                local_name: name.local.clone(),
+                namespace: name.ns.clone(),
                 attrs: attr_map,
             },
             parent,
@@ -212,8 +214,8 @@ impl TreeSink for DomTreeSink {
             &mut self.nodes[*target].node_type 
         {
             for attr in attrs {
-                let name = attr.name.local.to_string();
-                existing_attrs.entry(name).or_insert_with(|| attr.value.to_string());
+                let key = attr.name.local.to_string();
+                existing_attrs.entry(key).or_insert_with(|| attr.value.to_string());
             }
         }
     }

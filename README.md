@@ -102,8 +102,18 @@ src/
 - ✓ Efficient edge-based rendering
 - ✓ Combined rect+border rendering
 
+**Text Rendering** (Infrastructure Ready)
+
+- ✓ Glyph caching system
+- ✓ Texture atlas management
+- ✓ Text measurement API
+- ✓ Layout positioning
+- ⚠ Pending: Font file integration
+
+**Phase 2 Status:** Core rendering pipeline complete! Rectangle and border rendering fully functional. Text rendering infrastructure ready (awaiting font files).
+
 **Next Steps:**
-- Text rendering with font support
+- Complete text rendering with fonts
 - Image decoding and display
 - Scrolling support
 - Performance optimizations

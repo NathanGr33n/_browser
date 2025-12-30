@@ -49,6 +49,11 @@ cargo run --bin window_test
 cargo run --bin rect_test
 ```
 
+**Border Test** (shows boxes with borders):
+```bash
+cargo run --bin border_test
+```
+
 ## Project Structure
 
 ```
@@ -90,11 +95,18 @@ src/
 - ✓ Color and alpha blending support
 - ✓ Viewport culling
 
+**Border Rendering** ✓
+
+- ✓ Per-edge border width support
+- ✓ Border color customization
+- ✓ Efficient edge-based rendering
+- ✓ Combined rect+border rendering
+
 **Next Steps:**
-- Border rendering
 - Text rendering with font support
 - Image decoding and display
 - Scrolling support
+- Performance optimizations
 
 ## Architecture
 

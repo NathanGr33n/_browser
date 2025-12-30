@@ -34,7 +34,13 @@ cargo run
 ## Running Tests
 
 ```bash
-cargo test
+cargo test --lib
+```
+
+## Running Window Test
+
+```bash
+cargo run --bin window_test
 ```
 
 ## Project Structure
@@ -46,7 +52,11 @@ src/
 ├── css/          # CSS parser and value types
 ├── style/        # Style computation and selector matching
 ├── layout/       # Layout engine with box model
-└── main.rs       # Demo application
+├── window/       # Window management (Phase 2)
+├── renderer/     # GPU renderer (Phase 2)
+├── lib.rs        # Library interface
+├── main.rs       # Demo application
+└── bin/          # Test binaries
 ```
 
 ## Technology Stack
@@ -56,15 +66,22 @@ src/
 - **CSS Parser**: cssparser
 - **Selector Matching**: selectors crate
 
-## Next Steps: Phase 2
+### Phase 2: Rendering Pipeline (In Progress)
 
-**Rendering Pipeline** (Months 3-4)
+**Window & Graphics Setup** ✓
 
-- Graphics backend (wgpu for GPU acceleration)
-- Paint system for rendering boxes
-- Text rendering
-- Window management with winit
-- Basic user interaction
+- ✓ Cross-platform window creation (winit)
+- ✓ GPU renderer initialization (wgpu)
+- ✓ Hardware-accelerated clear operations
+- ✓ Window resize handling
+- ✓ Event loop integration
+
+**Next Steps:**
+- Display list generation from layout tree
+- Rectangle rendering with colors
+- Border rendering
+- Text rendering with font support
+- Image decoding and display
 
 ## Architecture
 

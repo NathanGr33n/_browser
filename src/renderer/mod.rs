@@ -1,4 +1,5 @@
 mod painter;
+mod border_painter;
 
 use wgpu::{
     Adapter, Device, Instance, Queue, Surface, SurfaceConfiguration, TextureFormat,
@@ -8,6 +9,7 @@ use winit::window::Window;
 use std::sync::Arc;
 
 pub use painter::RectPainter;
+pub use border_painter::BorderPainter;
 use crate::css::Color;
 use crate::layout::Rect;
 
@@ -19,6 +21,7 @@ pub struct Renderer<'window> {
     config: SurfaceConfiguration,
     size: (u32, u32),
     rect_painter: RectPainter,
+    border_painter: BorderPainter,
 }
 
 impl<'window> Renderer<'window> {
@@ -68,8 +71,9 @@ impl<'window> Renderer<'window> {
 
         surface.configure(&device, &config);
 
-        // Create rectangle painter
+        // Create painters
         let rect_painter = RectPainter::new(&device, surface_format);
+        let border_painter = BorderPainter::new(&device, surface_format);
 
         Ok(Self {
             surface,
@@ -78,6 +82,7 @@ impl<'window> Renderer<'window> {
             config,
             size: (size.width, size.height),
             rect_painter,
+            border_painter,
         })
     }
 
@@ -241,6 +246,44 @@ impl<'window> Renderer<'window> {
             });
 
             self.rect_painter.render(&mut render_pass);
+        })
+    }
+
+    /// Render rectangles and borders together
+    pub fn render_rects_and_borders(
+        &mut self,
+        rects: &[(Rect, Color)],
+        borders: &[(Rect, Color, (f32, f32, f32, f32))],
+    ) -> Result<(), RendererError> {
+        // Prepare data
+        self.rect_painter.prepare(&self.device, &self.queue, rects, self.size);
+        self.border_painter.prepare(&self.device, &self.queue, borders, self.size);
+
+        // Render both in same pass
+        self.render(|_device, _queue, view, encoder| {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Combined Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 1.0,
+                            g: 1.0,
+                            b: 1.0,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            // Render backgrounds first, then borders on top
+            self.rect_painter.render(&mut render_pass);
+            self.border_painter.render(&mut render_pass);
         })
     }
 }

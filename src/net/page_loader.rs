@@ -25,7 +25,7 @@ impl PageLoader {
         }
     }
 
-    /// Load a complete page: fetch HTML, parse DOM, fetch CSS, compute styles
+    /// Load a complete page: fetch HTML, parse DOM, fetch CSS, extract images
     pub fn load_page(&self, url: &Url) -> Result<LoadedPage, NetError> {
         // Fetch HTML
         let html_text = self.resource_loader.load_text(url)?;
@@ -35,11 +35,15 @@ impl PageLoader {
 
         // Extract and fetch CSS resources
         let stylesheets = self.extract_and_load_css(&dom, url)?;
+        
+        // Extract image URLs
+        let image_urls = self.extract_image_urls(&dom, url);
 
         Ok(LoadedPage {
             url: url.clone(),
             dom,
             stylesheets,
+            image_urls,
         })
     }
 
@@ -121,6 +125,33 @@ impl PageLoader {
         &self.resource_loader
     }
 
+    /// Extract image URLs from <img> tags
+    fn extract_image_urls(&self, dom: &Node, base_url: &Url) -> Vec<Url> {
+        let mut urls = Vec::new();
+        self.collect_image_urls(dom, base_url, &mut urls);
+        urls
+    }
+    
+    /// Recursively collect image URLs from DOM nodes
+    fn collect_image_urls(&self, node: &Node, base_url: &Url, urls: &mut Vec<Url>) {
+        if let Some(elem) = node.element_data() {
+            // Handle <img> tags
+            if elem.tag_name.to_lowercase() == "img" {
+                if let Some(src) = elem.attributes.get("src") {
+                    // Resolve relative URL
+                    if let Ok(img_url) = base_url.join(src) {
+                        urls.push(img_url);
+                    }
+                }
+            }
+        }
+        
+        // Recursively process children
+        for child in &node.children {
+            self.collect_image_urls(child, base_url, urls);
+        }
+    }
+    
     /// Clear the cache
     pub fn clear_cache(&self) {
         self.resource_loader.clear_cache();
@@ -133,11 +164,12 @@ impl Default for PageLoader {
     }
 }
 
-/// A loaded page with DOM and stylesheets
+/// A loaded page with DOM, stylesheets, and image URLs
 pub struct LoadedPage {
     pub url: Url,
     pub dom: Node,
     pub stylesheets: Vec<Stylesheet>,
+    pub image_urls: Vec<Url>,
 }
 
 impl LoadedPage {
@@ -191,6 +223,7 @@ mod tests {
             url: Url::parse("http://example.com").unwrap(),
             dom,
             stylesheets: Vec::new(),
+            image_urls: Vec::new(),
         };
 
         // Should return empty stylesheet
@@ -210,10 +243,36 @@ mod tests {
             url: Url::parse("http://example.com").unwrap(),
             dom,
             stylesheets: vec![css1, css2],
+            image_urls: Vec::new(),
         };
 
         // Should merge both stylesheets
         let stylesheet = page.merged_stylesheet();
         assert_eq!(stylesheet.rules.len(), 2);
+    }
+    
+    #[test]
+    fn test_extract_image_urls() {
+        use std::collections::HashMap;
+        
+        let loader = PageLoader::new();
+        let base_url = Url::parse("http://example.com/page").unwrap();
+        
+        // Create DOM with img tags
+        let mut attrs1 = HashMap::new();
+        attrs1.insert("src".to_string(), "image1.png".to_string());
+        let img1 = Node::element("img".to_string(), attrs1, vec![]);
+        
+        let mut attrs2 = HashMap::new();
+        attrs2.insert("src".to_string(), "/images/image2.jpg".to_string());
+        let img2 = Node::element("img".to_string(), attrs2, vec![]);
+        
+        let body = Node::element("body".to_string(), HashMap::new(), vec![img1, img2]);
+        
+        let urls = loader.extract_image_urls(&body, &base_url);
+        
+        assert_eq!(urls.len(), 2);
+        assert_eq!(urls[0].as_str(), "http://example.com/image1.png");
+        assert_eq!(urls[1].as_str(), "http://example.com/images/image2.jpg");
     }
 }

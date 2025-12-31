@@ -1,5 +1,7 @@
 mod painter;
 mod border_painter;
+pub mod font_manager;
+pub mod text_renderer;
 
 use wgpu::{
     Adapter, Device, Instance, Queue, Surface, SurfaceConfiguration, TextureFormat,

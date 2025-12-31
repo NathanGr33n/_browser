@@ -24,16 +24,29 @@ A performance-focused browser engine built from scratch in Rust.
 - ✓ Display list generation
 - ✓ Scrolling infrastructure
 - ✓ **End-to-end demo: HTML+CSS to screen**
-- ✓ 24 unit tests passing
+
+### Phase 3: Networking ✓ COMPLETE
+
+**Fetch and Render Real Websites!**
+
+- ✓ HTTP client with reqwest (blocking API)
+- ✓ Resource loader with 50MB LRU cache
+- ✓ Page loader integrating HTTP + parsing
+- ✓ CSS extraction from `<style>` and `<link>` tags
+- ✓ Navigation history (back/forward)
+- ✓ **Network demo: fetches example.com and renders it**
+- ✓ 37 unit tests passing
 
 ## Current Capabilities
 
 The browser engine can currently:
 
-1. **Parse HTML** - Convert HTML strings into a DOM tree
-2. **Parse CSS** - Parse stylesheets with selectors and property declarations
-3. **Compute Styles** - Match CSS rules to DOM elements with proper specificity
-4. **Calculate Layout** - Compute box dimensions using the CSS box model
+1. **Fetch HTML from the Web** - HTTP client with caching
+2. **Parse HTML** - Convert HTML strings into a DOM tree
+3. **Parse CSS** - Parse stylesheets with selectors and property declarations
+4. **Compute Styles** - Match CSS rules to DOM elements with proper specificity
+5. **Calculate Layout** - Compute box dimensions using the CSS box model
+6. **Render to Screen** - GPU-accelerated drawing of rectangles and borders
 
 ## Running the Demo
 
@@ -47,7 +60,13 @@ cargo run
 cargo test --lib
 ```
 
-## Running the Browser
+## Running Demos
+
+**Network Demo** (fetch real websites):
+```bash
+cargo run --example network_demo
+```
+Fetches example.com and httpbin.org, demonstrating the full HTTP → Render pipeline!
 
 **Full Browser Demo** (HTML+CSS rendering):
 ```bash
@@ -81,8 +100,10 @@ src/
 ├── css/          # CSS parser and value types
 ├── style/        # Style computation and selector matching
 ├── layout/       # Layout engine with box model
-├── window/       # Window management (Phase 2)
-├── renderer/     # GPU renderer (Phase 2)
+├── display/      # Display list generation
+├── window/       # Window management
+├── renderer/     # GPU renderer with wgpu
+├── net/          # HTTP client and resource loading (Phase 3)
 ├── lib.rs        # Library interface
 ├── main.rs       # Demo application
 └── bin/          # Test binaries
@@ -93,7 +114,10 @@ src/
 - **Language**: Rust (edition 2021)
 - **HTML Parser**: html5ever
 - **CSS Parser**: cssparser
-- **Selector Matching**: selectors crate
+- **Networking**: reqwest (blocking API)
+- **URL Parsing**: url crate
+- **Graphics**: wgpu (WebGPU API)
+- **Window**: winit (cross-platform)
 
 ### Phase 2: Rendering Pipeline (In Progress)
 
@@ -154,27 +178,28 @@ The browser can now **parse HTML/CSS and render it to screen** with GPU accelera
 - Render backgrounds and borders
 - Window management and events
 
-**Next: Phase 3**
-- Networking (HTTP client)
+**Next: Phase 4**
+- Address bar and navigation UI
 - JavaScript engine integration
-- More CSS features
+- More CSS features (flexbox, grid)
 - Font rendering completion
-- Image support
+- Image decoding and rendering
 
 ## Architecture
 
 The browser follows a traditional rendering pipeline:
 
 ```
-HTML → DOM Tree → Style Tree → Layout Tree → Display List → Pixels
+HTTP → HTML → DOM Tree → Style Tree → Layout Tree → Display List → Pixels
 ```
 
 **Current Implementation:**
+- HTTP → HTML ✓ (Phase 3)
 - HTML → DOM Tree ✓
 - DOM + CSS → Style Tree ✓
 - Style → Layout Tree ✓
-- Layout → Display List (Phase 2)
-- Display List → Pixels (Phase 2)
+- Layout → Display List ✓ (Phase 2)
+- Display List → Pixels ✓ (Phase 2)
 
 ## License
 

@@ -3,6 +3,7 @@ mod border_painter;
 pub mod font_manager;
 pub mod glyph_cache;
 pub mod text_renderer;
+pub mod image_cache;
 
 use wgpu::{
     Adapter, Device, Instance, Queue, Surface, SurfaceConfiguration, TextureFormat,

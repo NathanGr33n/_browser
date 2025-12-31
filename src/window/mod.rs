@@ -1,3 +1,5 @@
+pub mod scroll;
+
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
@@ -6,6 +8,8 @@ use winit::{
 };
 use std::sync::Arc;
 use crate::renderer::Renderer;
+
+pub use scroll::ScrollState;
 
 /// Application window with integrated renderer
 pub struct Window {

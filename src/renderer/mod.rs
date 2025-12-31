@@ -1,6 +1,7 @@
 mod painter;
 mod border_painter;
 pub mod font_manager;
+pub mod glyph_cache;
 pub mod text_renderer;
 
 use wgpu::{

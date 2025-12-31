@@ -1,5 +1,6 @@
 use crate::css::{Color, Value};
 use crate::layout::{LayoutBox, Rect};
+use url::Url;
 
 /// A display list is a list of graphics operations to perform
 pub type DisplayList = Vec<DisplayCommand>;
@@ -25,6 +26,11 @@ pub enum DisplayCommand {
         rect: Rect,
         color: Color,
     },
+    /// Draw an image
+    Image {
+        url: Url,
+        rect: Rect,
+    },
 }
 
 /// Build a display list from a layout tree
@@ -41,6 +47,9 @@ fn render_layout_box(list: &mut DisplayList, layout_box: &LayoutBox) {
     
     // Then render borders on top
     render_borders(list, layout_box);
+    
+    // Render images if this is an img element
+    render_image(list, layout_box);
     
     // Render text content if present
     render_text(list, layout_box);
@@ -75,6 +84,26 @@ fn render_borders(list: &mut DisplayList, layout_box: &LayoutBox) {
                 rect: layout_box.dimensions.border_box(),
                 widths: (border.left, border.right, border.top, border.bottom),
             });
+        }
+    }
+}
+
+/// Render image element
+fn render_image(list: &mut DisplayList, layout_box: &LayoutBox) {
+    if let Some(style_node) = layout_box.get_styled_node() {
+        if let Some(elem) = style_node.node.element_data() {
+            // Check if this is an img element
+            if elem.tag_name.to_lowercase() == "img" {
+                if let Some(src) = elem.attributes.get("src") {
+                    // Parse URL from src attribute
+                    if let Ok(url) = Url::parse(src) {
+                        list.push(DisplayCommand::Image {
+                            url,
+                            rect: layout_box.dimensions.content,
+                        });
+                    }
+                }
+            }
         }
     }
 }
@@ -127,6 +156,7 @@ pub fn cull_display_list(list: DisplayList, viewport: Rect) -> DisplayList {
                 DisplayCommand::SolidRect { rect, .. } => rect,
                 DisplayCommand::Border { rect, .. } => rect,
                 DisplayCommand::Text { rect, .. } => rect,
+                DisplayCommand::Image { rect, .. } => rect,
             };
             
             // Check if rectangles intersect
@@ -203,5 +233,28 @@ mod tests {
         
         // Only the first item should remain (second is outside viewport)
         assert_eq!(culled.len(), 1);
+    }
+    
+    #[test]
+    fn test_image_display_command() {
+        // Create DOM with img element
+        let mut attrs = HashMap::new();
+        attrs.insert("src".to_string(), "http://example.com/test.png".to_string());
+        
+        let node = Node::element("img".to_string(), attrs, vec![]);
+        let css = "img { width: 100px; height: 100px; }";
+        let stylesheet = CssParser::parse(css);
+        let styled = style_tree(&node, &stylesheet);
+        
+        let mut viewport = Dimensions::default();
+        viewport.content.width = 800.0;
+        viewport.content.height = 600.0;
+        
+        let layout = layout_tree(&styled, viewport);
+        let display_list = build_display_list(&layout);
+        
+        // Should have an image command
+        let has_image = display_list.iter().any(|cmd| matches!(cmd, DisplayCommand::Image { .. }));
+        assert!(has_image);
     }
 }

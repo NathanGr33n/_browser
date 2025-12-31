@@ -1,6 +1,10 @@
+mod resource_loader;
+
 use reqwest::blocking::Client;
 use std::time::Duration;
 use url::Url;
+
+pub use resource_loader::{ResourceLoader, ResourceType, CachedResource};
 
 /// HTTP client for fetching web resources
 pub struct HttpClient {
@@ -12,7 +16,7 @@ pub struct HttpClient {
 pub struct Response {
     pub url: Url,
     pub status: u16,
-    pub content_type: Option<String>,
+    pub content_type: String,
     pub body: Vec<u8>,
 }
 
@@ -23,6 +27,7 @@ pub enum NetError {
     RequestFailed(String),
     Timeout,
     NetworkError(String),
+    ParseError(String),
 }
 
 impl std::fmt::Display for NetError {
@@ -32,6 +37,7 @@ impl std::fmt::Display for NetError {
             NetError::RequestFailed(msg) => write!(f, "Request failed: {}", msg),
             NetError::Timeout => write!(f, "Request timed out"),
             NetError::NetworkError(msg) => write!(f, "Network error: {}", msg),
+            NetError::ParseError(msg) => write!(f, "Parse error: {}", msg),
         }
     }
 }
@@ -40,25 +46,21 @@ impl std::error::Error for NetError {}
 
 impl HttpClient {
     /// Create a new HTTP client
-    pub fn new() -> Result<Self, NetError> {
+    pub fn new() -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .user_agent("BrowserEngine/0.1.0")
             .build()
-            .map_err(|e| NetError::NetworkError(e.to_string()))?;
+            .expect("Failed to create HTTP client");
 
-        Ok(Self { client })
+        Self { client }
     }
 
     /// Fetch a resource from a URL
-    pub fn fetch(&self, url: &str) -> Result<Response, NetError> {
-        // Parse URL
-        let parsed_url = Url::parse(url)
-            .map_err(|e| NetError::InvalidUrl(e.to_string()))?;
-
+    pub fn fetch(&self, url: &Url) -> Result<Response, NetError> {
         // Make request
         let response = self.client
-            .get(parsed_url.clone())
+            .get(url.clone())
             .send()
             .map_err(|e| NetError::RequestFailed(e.to_string()))?;
 
@@ -68,7 +70,8 @@ impl HttpClient {
             .headers()
             .get("content-type")
             .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
+            .map(|s| s.to_string())
+            .unwrap_or_default();
 
         // Read body
         let body = response
@@ -77,7 +80,7 @@ impl HttpClient {
             .to_vec();
 
         Ok(Response {
-            url: parsed_url,
+            url: url.clone(),
             status,
             content_type,
             body,
@@ -85,17 +88,17 @@ impl HttpClient {
     }
 
     /// Fetch and return as UTF-8 string (for HTML/CSS)
-    pub fn fetch_text(&self, url: &str) -> Result<String, NetError> {
+    pub fn fetch_text(&self, url: &Url) -> Result<String, NetError> {
         let response = self.fetch(url)?;
         
         String::from_utf8(response.body)
-            .map_err(|e| NetError::NetworkError(format!("Invalid UTF-8: {}", e)))
+            .map_err(|e| NetError::ParseError(format!("Invalid UTF-8: {}", e)))
     }
 }
 
 impl Default for HttpClient {
     fn default() -> Self {
-        Self::new().expect("Failed to create HTTP client")
+        Self::new()
     }
 }
 

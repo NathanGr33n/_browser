@@ -1,10 +1,12 @@
 mod resource_loader;
+mod page_loader;
 
 use reqwest::blocking::Client;
 use std::time::Duration;
 use url::Url;
 
 pub use resource_loader::{ResourceLoader, ResourceType, CachedResource};
+pub use page_loader::{PageLoader, LoadedPage};
 
 /// HTTP client for fetching web resources
 pub struct HttpClient {

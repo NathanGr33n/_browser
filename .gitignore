@@ -1,3 +1,33 @@
+# Rust build artifacts
 /target
-#Warp .md
+**/*.rs.bk
+*.pdb
+
+# Cargo lock for library projects (keep for binary projects)
+# Cargo.lock
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Warp AI assistant files
 WARP.md
+
+# OS-specific files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Test and benchmark artifacts
+*.profraw
+*.profdata
+
+# Documentation build
+/target/doc
+
+# Examples build artifacts
+/examples/target

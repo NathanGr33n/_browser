@@ -1,3 +1,5 @@
+pub mod flexbox;
+
 use crate::css::{Value, Unit};
 use crate::style::{StyledNode, Display};
 

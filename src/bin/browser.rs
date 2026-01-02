@@ -266,8 +266,13 @@ fn extract_render_data(display_list: &[DisplayCommand]) -> (Vec<(Rect, Color)>, 
 fn extract_script(html: &str) -> Option<String> {
     // Very basic script extraction for demo
     if let Some(start) = html.find("<script>") {
-        if let Some(end) = html.find("</script>") {
-            return Some(html[start + 8..end].to_string());
+        if let Some(end) = html[start..].find("</script>") {
+            let script_start = start + 8;
+            let script_end = start + end;
+            // Bounds check
+            if script_start <= script_end && script_end <= html.len() {
+                return Some(html[script_start..script_end].to_string());
+            }
         }
     }
     None

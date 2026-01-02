@@ -159,11 +159,13 @@ impl TextAreaState {
         let rows = attrs
             .get("rows")
             .and_then(|s| s.parse().ok())
-            .unwrap_or(2);
+            .unwrap_or(2)
+            .clamp(1, 1000); // Limit to reasonable range
         let cols = attrs
             .get("cols")
             .and_then(|s| s.parse().ok())
-            .unwrap_or(20);
+            .unwrap_or(20)
+            .clamp(1, 1000); // Limit to reasonable range
         let max_length = attrs.get("maxlength").and_then(|s| s.parse().ok());
 
         Self {

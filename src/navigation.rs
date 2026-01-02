@@ -59,6 +59,8 @@ impl NavigationHistory {
         // Maintain max size
         if self.entries.len() > self.max_size {
             self.entries.pop_front();
+            // After pop_front, current_index stays at max_size - 1
+            self.current_index = self.max_size.saturating_sub(1);
         } else {
             self.current_index = self.entries.len().saturating_sub(1);
         }

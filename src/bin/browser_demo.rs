@@ -191,6 +191,9 @@ fn extract_render_data(display_list: &[DisplayCommand]) -> (Vec<(Rect, Color)>, 
             DisplayCommand::Text { .. } => {
                 // Text rendering not yet implemented
             }
+            DisplayCommand::Image { .. } => {
+                // Image rendering not yet implemented
+            }
         }
     }
     

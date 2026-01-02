@@ -20,11 +20,13 @@ pub enum DisplayCommand {
         /// Border widths: left, right, top, bottom
         widths: (f32, f32, f32, f32),
     },
-    /// Draw text at a position (placeholder for now)
+    /// Draw text at a position
     Text {
         text: String,
         rect: Rect,
         color: Color,
+        font_family: String,
+        font_size: f32,
     },
     /// Draw an image
     Image {
@@ -108,7 +110,7 @@ fn render_image(list: &mut DisplayList, layout_box: &LayoutBox) {
     }
 }
 
-/// Render text content of a layout box (placeholder)
+/// Render text content of a layout box
 fn render_text(list: &mut DisplayList, layout_box: &LayoutBox) {
     // Get the styled node
     if let Some(style_node) = layout_box.get_styled_node() {
@@ -118,10 +120,29 @@ fn render_text(list: &mut DisplayList, layout_box: &LayoutBox) {
                 let color = get_color(layout_box, "color")
                     .unwrap_or(Color::new(0, 0, 0, 255)); // Default to black
                 
+                // Get font properties
+                let font_family = style_node
+                    .value("font-family")
+                    .and_then(|v| match v {
+                        Value::Keyword(s) => Some(s.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| "sans-serif".to_string());
+                
+                let font_size = style_node
+                    .value("font-size")
+                    .and_then(|v| match v {
+                        Value::Length(size, _) => Some(*size),
+                        _ => None,
+                    })
+                    .unwrap_or(16.0); // Default to 16px
+                
                 list.push(DisplayCommand::Text {
                     text: text.to_string(),
-                    rect: layout_box.dimensions.border_box(),
+                    rect: layout_box.dimensions.content,
                     color,
+                    font_family,
+                    font_size,
                 });
             }
         }

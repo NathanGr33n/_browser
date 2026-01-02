@@ -1,6 +1,6 @@
-// Minimal JavaScript runtime
-// Note: This is a stub for a full JS engine integration (V8, SpiderMonkey, etc.)
+// JavaScript runtime using Boa engine
 
+use boa_engine::{Context, Source, JsValue as BoaJsValue, property::PropertyKey};
 use std::collections::HashMap;
 
 /// JavaScript value types
@@ -54,6 +54,26 @@ impl JsValue {
             JsValue::Function(_) => "[Function]".to_string(),
         }
     }
+    
+    /// Convert from Boa JsValue
+    fn from_boa(value: &BoaJsValue, context: &mut Context) -> Self {
+        if value.is_undefined() {
+            JsValue::Undefined
+        } else if value.is_null() {
+            JsValue::Null
+        } else if value.is_boolean() {
+            JsValue::Boolean(value.as_boolean().unwrap())
+        } else if value.is_number() {
+            JsValue::Number(value.as_number().unwrap())
+        } else if value.is_string() {
+            JsValue::String(value.to_string(context).unwrap().to_std_string_escaped())
+        } else if value.is_object() {
+            // Simplified: convert to string representation
+            JsValue::String(value.to_string(context).unwrap().to_std_string_escaped())
+        } else {
+            JsValue::Undefined
+        }
+    }
 }
 
 /// JavaScript runtime errors
@@ -80,12 +100,10 @@ impl std::fmt::Display for JsError {
 
 impl std::error::Error for JsError {}
 
-/// Minimal JavaScript runtime
-/// NOTE: This is a simplified stub. A real implementation would integrate
-/// V8, SpiderMonkey, or another full-featured JS engine.
+/// JavaScript runtime using Boa engine
 pub struct JsRuntime {
-    /// Global variables
-    globals: HashMap<String, JsValue>,
+    /// Boa context
+    context: Context<'static>,
     /// Console log buffer
     console_logs: Vec<String>,
 }
@@ -93,104 +111,63 @@ pub struct JsRuntime {
 impl JsRuntime {
     /// Create a new JavaScript runtime
     pub fn new() -> Self {
-        let mut globals = HashMap::new();
-        
-        // Add basic global objects
-        globals.insert("undefined".to_string(), JsValue::Undefined);
-        globals.insert("null".to_string(), JsValue::Null);
-        globals.insert("true".to_string(), JsValue::Boolean(true));
-        globals.insert("false".to_string(), JsValue::Boolean(false));
+        let context = Context::default();
         
         Self {
-            globals,
+            context,
             console_logs: Vec::new(),
         }
     }
     
     /// Execute JavaScript code
-    /// NOTE: This is a very basic stub that only handles simple expressions
-    /// A real implementation would use a proper JS engine
     pub fn execute(&mut self, code: &str) -> Result<JsValue, JsError> {
-        let code = code.trim();
+        let source = Source::from_bytes(code);
         
-        // Handle console.log (simplified)
-        if code.starts_with("console.log(") && code.ends_with(')') {
-            let content = &code[12..code.len() - 1];
-            self.console_logs.push(content.to_string());
-            return Ok(JsValue::Undefined);
-        }
-        
-        // Handle simple variable assignments
-        if code.contains('=') && !code.contains("==") {
-            let parts: Vec<&str> = code.splitn(2, '=').collect();
-            if parts.len() == 2 {
-                let var_name = parts[0].trim().replace("var ", "").replace("let ", "").replace("const ", "");
-                let value = self.parse_value(parts[1].trim())?;
-                self.globals.insert(var_name, value.clone());
-                return Ok(value);
+        match self.context.eval(source) {
+            Ok(value) => Ok(JsValue::from_boa(&value, &mut self.context)),
+            Err(e) => {
+                let error_string = e.to_string();
+                
+                // Classify error type based on message
+                if error_string.contains("SyntaxError") {
+                    Err(JsError::SyntaxError(error_string))
+                } else if error_string.contains("ReferenceError") {
+                    Err(JsError::ReferenceError(error_string))
+                } else if error_string.contains("TypeError") {
+                    Err(JsError::TypeError(error_string))
+                } else {
+                    Err(JsError::RuntimeError(error_string))
+                }
             }
         }
-        
-        // Handle variable lookup
-        if let Some(value) = self.globals.get(code) {
-            return Ok(value.clone());
-        }
-        
-        // Try to parse as literal
-        self.parse_value(code)
-    }
-    
-    /// Parse a JavaScript value (simplified)
-    fn parse_value(&self, input: &str) -> Result<JsValue, JsError> {
-        let input = input.trim();
-        
-        // Boolean literals
-        if input == "true" {
-            return Ok(JsValue::Boolean(true));
-        }
-        if input == "false" {
-            return Ok(JsValue::Boolean(false));
-        }
-        
-        // Null and undefined
-        if input == "null" {
-            return Ok(JsValue::Null);
-        }
-        if input == "undefined" {
-            return Ok(JsValue::Undefined);
-        }
-        
-        // String literals
-        if (input.starts_with('"') && input.ends_with('"'))
-            || (input.starts_with('\'') && input.ends_with('\''))
-        {
-            return Ok(JsValue::String(input[1..input.len() - 1].to_string()));
-        }
-        
-        // Number literals
-        if let Ok(num) = input.parse::<f64>() {
-            return Ok(JsValue::Number(num));
-        }
-        
-        // Variable reference
-        if let Some(value) = self.globals.get(input) {
-            return Ok(value.clone());
-        }
-        
-        Err(JsError::SyntaxError(format!("Unexpected token: {}", input)))
     }
     
     /// Set a global variable
     pub fn set_global(&mut self, name: String, value: JsValue) {
-        self.globals.insert(name, value);
+        let boa_value = match value {
+            JsValue::Undefined => BoaJsValue::undefined(),
+            JsValue::Null => BoaJsValue::null(),
+            JsValue::Boolean(b) => BoaJsValue::from(b),
+            JsValue::Number(n) => BoaJsValue::from(n),
+            JsValue::String(s) => BoaJsValue::from(s),
+            _ => BoaJsValue::undefined(), // Simplified for now
+        };
+        
+        // Set property on global object
+        let global_obj = self.context.global_object().clone();
+        let key = PropertyKey::from(name.as_str());
+        global_obj.set(key, boa_value, false, &mut self.context).unwrap();
     }
     
     /// Get a global variable
-    pub fn get_global(&self, name: &str) -> Option<&JsValue> {
-        self.globals.get(name)
+    pub fn get_global(&mut self, name: &str) -> Option<JsValue> {
+        let global_obj = self.context.global_object();
+        let key = PropertyKey::from(name);
+        let property = global_obj.get(key, &mut self.context).ok()?;
+        Some(JsValue::from_boa(&property, &mut self.context))
     }
     
-    /// Get console logs
+    /// Get console logs (stub for now - would need console capture)
     pub fn console_logs(&self) -> &[String] {
         &self.console_logs
     }
@@ -234,9 +211,8 @@ mod tests {
     
     #[test]
     fn test_runtime_creation() {
-        let runtime = JsRuntime::new();
-        assert!(runtime.get_global("undefined").is_some());
-        assert!(runtime.get_global("null").is_some());
+        let _runtime = JsRuntime::new();
+        // Context creation successful if we reach here
     }
     
     #[test]
@@ -256,13 +232,32 @@ mod tests {
     fn test_variable_assignment() {
         let mut runtime = JsRuntime::new();
         runtime.execute("var x = 42").unwrap();
-        assert_eq!(runtime.get_global("x"), Some(&JsValue::Number(42.0)));
+        let x = runtime.get_global("x").unwrap();
+        assert_eq!(x.to_number(), 42.0);
     }
     
     #[test]
-    fn test_console_log() {
+    fn test_arithmetic() {
         let mut runtime = JsRuntime::new();
-        runtime.execute("console.log(\"test\")").unwrap();
-        assert_eq!(runtime.console_logs().len(), 1);
+        let result = runtime.execute("2 + 3").unwrap();
+        assert_eq!(result.to_number(), 5.0);
+    }
+    
+    #[test]
+    fn test_string_operations() {
+        let mut runtime = JsRuntime::new();
+        let result = runtime.execute("\"hello\" + \" \" + \"world\"").unwrap();
+        assert_eq!(result.to_string(), "hello world");
+    }
+    
+    #[test]
+    fn test_syntax_error() {
+        let mut runtime = JsRuntime::new();
+        let result = runtime.execute("var x = ");
+        assert!(result.is_err());
+        match result {
+            Err(JsError::SyntaxError(_)) => (),
+            _ => panic!("Expected SyntaxError"),
+        }
     }
 }

@@ -124,8 +124,10 @@ impl GridContainer {
             let mut dims = Dimensions::default();
 
             // Determine grid position (simple auto-placement for now)
-            let col = item.column_start.unwrap_or(idx % column_sizes.len());
-            let row = item.row_start.unwrap_or(idx / column_sizes.len());
+            // Protect against division by zero if no columns defined
+            let num_cols = column_sizes.len().max(1);
+            let col = item.column_start.unwrap_or(idx % num_cols).min(column_sizes.len().saturating_sub(1));
+            let row = item.row_start.unwrap_or(idx / num_cols);
 
             let col_span = item.column_span.unwrap_or(1).min(column_sizes.len() - col);
             let row_span = item.row_span.unwrap_or(1).min(row_sizes.len() - row);

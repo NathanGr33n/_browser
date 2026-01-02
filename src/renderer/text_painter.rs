@@ -271,6 +271,10 @@ impl TextPainter {
                         let v2 = (glyph.atlas_y + glyph.height) as f32 / atlas_dims.1 as f32;
 
                         // Create vertices
+                        // Protect against u16 overflow
+                        if vertices.len() >= (u16::MAX as usize - 4) {
+                            break; // Stop adding vertices
+                        }
                         let base_index = vertices.len() as u16;
                         vertices.extend_from_slice(&[
                             TextVertex { position: [ndc_x1, ndc_y1], tex_coords: [u1, v1], color: color_f },

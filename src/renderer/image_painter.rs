@@ -272,6 +272,10 @@ impl ImagePainter {
             let y2 = 1.0 - ((cmd.rect.y + cmd.rect.height) / viewport_size.1 as f32) * 2.0;
 
             // Texture coordinates (0,0) to (1,1)
+            // Protect against u16 overflow
+            if vertices.len() >= (u16::MAX as usize - 4) {
+                break; // Stop adding vertices if we'd overflow
+            }
             let base_index = vertices.len() as u16;
             vertices.extend_from_slice(&[
                 ImageVertex { position: [x1, y1], tex_coords: [0.0, 0.0] }, // Top-left

@@ -3,11 +3,16 @@ mod html;
 mod css;
 mod style;
 mod layout;
+mod window;
+mod renderer;
 
 use html::HtmlParser;
 use css::CssParser;
 use style::style_tree;
 use layout::{layout_tree, Dimensions};
+use window::{Window, WindowConfig};
+use renderer::Renderer;
+use winit::event::WindowEvent;
 
 fn main() {
     println!("=== Browser Engine Phase 1 Demo ===");
@@ -85,5 +90,5 @@ fn main() {
     println!("CSS Parser: ✓");
     println!("Style Computation: ✓");
     println!("Layout Engine: ✓");
-    println!("\nNext steps: Phase 2 - Rendering Pipeline");
+    
 }

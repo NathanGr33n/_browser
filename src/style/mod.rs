@@ -17,6 +17,7 @@ pub type PropertyMap = HashMap<String, Value>;
 pub enum Display {
     Inline,
     Block,
+    Flex,
     None,
 }
 
@@ -39,6 +40,7 @@ impl<'a> StyledNode<'a> {
         match self.value("display") {
             Some(Value::Keyword(s)) => match s.as_str() {
                 "block" => Display::Block,
+                "flex" | "inline-flex" => Display::Flex,
                 "none" => Display::None,
                 _ => Display::Inline,
             },

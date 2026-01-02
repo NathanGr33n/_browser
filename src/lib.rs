@@ -11,3 +11,4 @@ pub mod renderer;
 pub mod net;
 pub mod ui;
 pub mod js;
+pub mod navigation;

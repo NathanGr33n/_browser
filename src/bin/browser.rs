@@ -12,6 +12,7 @@ use browser_engine::{
     navigation::NavigationHistory,
     js::JsContext,
     net::HttpClient,
+    devtools::{DevTools, DevToolsTab, NetworkRequestType},
 };
 use winit::event::WindowEvent;
 use std::sync::{Arc, Mutex};
@@ -26,6 +27,8 @@ struct BrowserApp {
     js_context: JsContext,
     /// HTTP client for loading pages
     http_client: HttpClient,
+    /// Developer tools
+    devtools: DevTools,
     /// Current page content
     current_content: Option<PageContent>,
     /// Loading state
@@ -46,6 +49,7 @@ impl BrowserApp {
             history: NavigationHistory::new(),
             js_context: JsContext::new(),
             http_client: HttpClient::new(),
+            devtools: DevTools::new(),
             current_content: None,
             loading: false,
         }
@@ -65,7 +69,9 @@ impl BrowserApp {
                 match url::Url::parse(&format!("http://{}", url_str)) {
                     Ok(u) => u,
                     Err(e) => {
-                        eprintln!("Invalid URL: {}", e);
+                        let error_msg = format!("Invalid URL: {}", e);
+                        eprintln!("{}", error_msg);
+                        self.devtools.console.error(error_msg);
                         self.loading = false;
                         self.ui.address_bar.set_loading(false);
                         return;
@@ -74,11 +80,19 @@ impl BrowserApp {
             }
         };
         
+        // Log navigation in devtools
+        let req_idx = self.devtools.network.log_request(
+            url.clone(),
+            "GET".to_string(),
+            NetworkRequestType::Document,
+        );
+        self.devtools.console.info(format!("Navigating to: {}", url));
+        
         // Add to history
         self.history.navigate_to(url.clone());
         
         // Load the page
-        match self.load_page(&url) {
+        match self.load_page(&url, Some(req_idx)) {
             Ok(content) => {
                 self.current_content = Some(content);
                 self.ui.address_bar.set_url(url.to_string());
@@ -95,7 +109,7 @@ impl BrowserApp {
     }
     
     /// Load and render a page
-    fn load_page(&mut self, url: &url::Url) -> Result<PageContent, String> {
+    fn load_page(&mut self, url: &url::Url, network_req_idx: Option<usize>) -> Result<PageContent, String> {
         // Handle special URLs
         if url.as_str() == "about:blank" {
             return Ok(PageContent {
@@ -108,15 +122,31 @@ impl BrowserApp {
         let html_content = if url.scheme() == "http" || url.scheme() == "https" {
             // Try to fetch from network
             match self.http_client.fetch_text(url) {
-                Ok(text) => text,
+                Ok(text) => {
+                    // Complete network request
+                    if let Some(idx) = network_req_idx {
+                        self.devtools.network.complete_request(idx, 200, text.len(), Some("text/html".to_string()));
+                    }
+                    text
+                }
                 Err(e) => {
-                    eprintln!("Network error: {}", e);
+                    let error_msg = format!("Network error: {}", e);
+                    eprintln!("{}", error_msg);
+                    self.devtools.console.error(error_msg);
+                    // Mark request as failed
+                    if let Some(idx) = network_req_idx {
+                        self.devtools.network.complete_request(idx, 0, 0, None);
+                    }
                     // Fallback to example content
                     get_example_html()
                 }
             }
         } else {
             // Use example HTML for testing
+            if let Some(idx) = network_req_idx {
+                let html = get_example_html();
+                self.devtools.network.complete_request(idx, 200, html.len(), Some("text/html".to_string()));
+            }
             get_example_html()
         };
         
@@ -144,8 +174,16 @@ impl BrowserApp {
         
         // Execute any JavaScript (simplified)
         if let Some(script) = extract_script(&html_content) {
-            if let Err(e) = self.js_context.execute(&script) {
-                eprintln!("JavaScript error: {}", e);
+            self.devtools.console.log("Executing inline script".to_string());
+            match self.js_context.execute(&script) {
+                Ok(result) => {
+                    self.devtools.console.debug(format!("Script result: {:?}", result));
+                }
+                Err(e) => {
+                    let error_msg = format!("JavaScript error: {}", e);
+                    eprintln!("{}", error_msg);
+                    self.devtools.console.error(error_msg);
+                }
             }
         }
         
@@ -161,8 +199,9 @@ impl BrowserApp {
         let url = self.history.go_back().map(|e| e.url.clone());
         if let Some(url) = url {
             let url_str = url.to_string();
+            self.devtools.console.info(format!("Back to: {}", url_str));
             // Load without adding to history again
-            if let Ok(content) = self.load_page(&url) {
+            if let Ok(content) = self.load_page(&url, None) {
                 self.current_content = Some(content);
                 self.ui.address_bar.set_url(url_str);
             }
@@ -175,8 +214,9 @@ impl BrowserApp {
         let url = self.history.go_forward().map(|e| e.url.clone());
         if let Some(url) = url {
             let url_str = url.to_string();
+            self.devtools.console.info(format!("Forward to: {}", url_str));
             // Load without adding to history again
-            if let Ok(content) = self.load_page(&url) {
+            if let Ok(content) = self.load_page(&url, None) {
                 self.current_content = Some(content);
                 self.ui.address_bar.set_url(url_str);
             }
@@ -190,7 +230,7 @@ impl BrowserApp {
         // Re-render current page with new dimensions
         if let Some(entry) = self.history.current_entry() {
             let url = entry.url.clone();
-            if let Ok(content) = self.load_page(&url) {
+            if let Ok(content) = self.load_page(&url, None) {
                 self.current_content = Some(content);
             }
         }
@@ -354,6 +394,7 @@ fn main() {
     println!("  - Type URL in address bar (Enter to navigate)");
     println!("  - Alt+Left: Back");
     println!("  - Alt+Right: Forward");
+    println!("  - F12: Toggle DevTools");
     println!("  - Ctrl+R: Refresh");
     println!("  - ESC: Exit\n");
     
@@ -387,6 +428,30 @@ fn main() {
                 if event.logical_key == Key::Named(NamedKey::Escape) {
                     println!("\nESC pressed. Exiting...");
                     return false;
+                }
+                
+                // F12: Toggle DevTools
+                if event.logical_key == Key::Named(NamedKey::F12) {
+                    app.devtools.toggle();
+                    if app.devtools.is_open {
+                        println!("\n=== Developer Tools ===");
+                        println!("Console: {} messages ({} errors, {} warnings)",
+                            app.devtools.console.count(),
+                            app.devtools.console.error_count(),
+                            app.devtools.console.warning_count());
+                        println!("Network: {} requests ({} failed, {} bytes total)",
+                            app.devtools.network.count(),
+                            app.devtools.network.failed_count(),
+                            app.devtools.network.total_size());
+                        
+                        // Print recent console messages
+                        println!("\nRecent Console Messages:");
+                        for msg in app.devtools.console.messages().iter().rev().take(5) {
+                            println!("  [{:?}] {}", msg.msg_type, msg.content);
+                        }
+                    } else {
+                        println!("\nDevTools closed.");
+                    }
                 }
                 
                 // Alt+Left: Back

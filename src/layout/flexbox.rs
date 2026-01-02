@@ -1,7 +1,7 @@
 // Flexbox layout implementation
 
 use crate::css::{Value, Unit};
-use crate::layout::{Dimensions, Rect};
+use crate::layout::Dimensions;
 use crate::style::StyledNode;
 
 /// Flexbox direction
@@ -241,6 +241,7 @@ impl FlexContainer {
         for line in &lines {
             let line_item_states = self.resolve_flexible_lengths(
                 &mut item_states,
+                items,
                 line,
                 main_axis_size,
             );
@@ -285,7 +286,8 @@ impl FlexContainer {
     fn initialize_item_states(&self, items: &[FlexItem], main_axis_size: f32) -> Vec<FlexItemState> {
         items
             .iter()
-            .map(|item| {
+            .enumerate()
+            .map(|(idx, item)| {
                 // Determine base size from flex-basis or content size
                 let base_size = item.flex_basis.unwrap_or(0.0);
                 
@@ -300,7 +302,7 @@ impl FlexContainer {
                     base_size,
                     hypothetical_size,
                     main_size: hypothetical_size,
-                    cross_size: 0.0,
+                    cross_size: 100.0, // Default cross size for items
                     flex_factor: if hypothetical_size < base_size {
                         item.flex_shrink
                     } else {
@@ -308,7 +310,7 @@ impl FlexContainer {
                     },
                     frozen: false,
                     outer_main_size: hypothetical_size,
-                    outer_cross_size: 0.0,
+                    outer_cross_size: 100.0, // Default cross size for items
                 }
             })
             .collect()
@@ -387,12 +389,13 @@ impl FlexContainer {
     /// Resolve flexible lengths (grow/shrink algorithm)
     fn resolve_flexible_lengths(
         &self,
-        items: &mut [FlexItemState],
+        item_states: &mut [FlexItemState],
+        items: &[FlexItem],
         line: &FlexLine,
         main_axis_size: f32,
     ) -> Vec<usize> {
         // Calculate available space
-        let used_space: f32 = line.items.iter().map(|&i| items[i].hypothetical_size).sum();
+        let used_space: f32 = line.items.iter().map(|&i| item_states[i].hypothetical_size).sum();
         let free_space = main_axis_size - used_space;
         
         if free_space.abs() < 0.001 {
@@ -402,24 +405,53 @@ impl FlexContainer {
         
         if free_space > 0.0 {
             // Grow items
-            let total_grow: f32 = line.items.iter().map(|&i| items[i].flex_factor).sum();
+            let total_grow: f32 = line.items.iter()
+                .map(|&i| items[i].flex_grow)
+                .sum();
+            
             if total_grow > 0.0 {
                 for &item_idx in &line.items {
-                    let item = &mut items[item_idx];
-                    let grow_factor = item.flex_factor / total_grow;
-                    item.main_size = item.hypothetical_size + (free_space * grow_factor);
-                    item.outer_main_size = item.main_size;
+                    let original_item = &items[item_idx];
+                    let item_state = &mut item_states[item_idx];
+                    
+                    let grow_factor = original_item.flex_grow / total_grow;
+                    let mut new_size = item_state.hypothetical_size + (free_space * grow_factor);
+                    
+                    // Apply max-size constraint
+                    if let Some(max_size) = original_item.max_size {
+                        new_size = new_size.min(max_size);
+                    }
+                    
+                    // Apply min-size constraint
+                    if let Some(min_size) = original_item.min_size {
+                        new_size = new_size.max(min_size);
+                    }
+                    
+                    item_state.main_size = new_size;
+                    item_state.outer_main_size = item_state.main_size;
                 }
             }
         } else {
             // Shrink items
-            let total_shrink: f32 = line.items.iter().map(|&i| items[i].flex_factor).sum();
+            let total_shrink: f32 = line.items.iter()
+                .map(|&i| items[i].flex_shrink)
+                .sum();
+            
             if total_shrink > 0.0 {
                 for &item_idx in &line.items {
-                    let item = &mut items[item_idx];
-                    let shrink_factor = item.flex_factor / total_shrink;
-                    item.main_size = item.hypothetical_size + (free_space * shrink_factor);
-                    item.outer_main_size = item.main_size.max(0.0);
+                    let original_item = &items[item_idx];
+                    let item_state = &mut item_states[item_idx];
+                    
+                    let shrink_factor = original_item.flex_shrink / total_shrink;
+                    let mut new_size = item_state.hypothetical_size + (free_space * shrink_factor);
+                    
+                    // Apply min-size constraint
+                    if let Some(min_size) = original_item.min_size {
+                        new_size = new_size.max(min_size);
+                    }
+                    
+                    item_state.main_size = new_size.max(0.0);
+                    item_state.outer_main_size = item_state.main_size;
                 }
             }
         }
@@ -434,12 +466,22 @@ impl FlexContainer {
         lines: &[FlexLine],
         cross_axis_size: f32,
     ) {
+        // For single-line containers, the line cross size should be the container's cross size
+        // For multi-line, each line gets its max item cross size
+        let is_single_line = lines.len() == 1;
+        
         for line in lines {
+            let effective_line_cross_size = if is_single_line {
+                cross_axis_size
+            } else {
+                line.cross_size
+            };
+            
             for &item_idx in &line.items {
                 let item = &mut items[item_idx];
-                // Simplified: use a default cross size
-                item.cross_size = line.cross_size;
-                item.outer_cross_size = item.cross_size;
+                // Keep item's intrinsic cross size (100.0 default)
+                // This is used for alignment calculations
+                // cross_size stays as-is, but we'll use effective_line_cross_size for line-based calculations
             }
         }
     }
@@ -520,15 +562,24 @@ impl FlexContainer {
         cross_axis_size: f32,
     ) -> Vec<Dimensions> {
         let mut current_cross = 0.0;
+        let is_single_line = lines.len() == 1;
         
         for line in lines {
+            // For single-line containers, use full container cross size
+            // For multi-line, use the line's computed cross size
+            let effective_line_cross_size = if is_single_line {
+                cross_axis_size
+            } else {
+                line.cross_size
+            };
+            
             for &item_idx in &line.items {
                 let item = &items[item_idx];
                 
                 let cross_position = match self.align_items {
                     AlignItems::FlexStart => current_cross,
-                    AlignItems::FlexEnd => current_cross + line.cross_size - item.cross_size,
-                    AlignItems::Center => current_cross + (line.cross_size - item.cross_size) / 2.0,
+                    AlignItems::FlexEnd => current_cross + effective_line_cross_size - item.cross_size,
+                    AlignItems::Center => current_cross + (effective_line_cross_size - item.cross_size) / 2.0,
                     AlignItems::Stretch | AlignItems::Baseline => current_cross,
                 };
                 
@@ -536,7 +587,7 @@ impl FlexContainer {
                     FlexDirection::Row | FlexDirection::RowReverse => {
                         results[item_idx].content.y = cross_position;
                         results[item_idx].content.height = if self.align_items == AlignItems::Stretch {
-                            line.cross_size
+                            effective_line_cross_size
                         } else {
                             item.cross_size
                         };
@@ -544,7 +595,7 @@ impl FlexContainer {
                     FlexDirection::Column | FlexDirection::ColumnReverse => {
                         results[item_idx].content.x = cross_position;
                         results[item_idx].content.width = if self.align_items == AlignItems::Stretch {
-                            line.cross_size
+                            effective_line_cross_size
                         } else {
                             item.cross_size
                         };
@@ -552,7 +603,7 @@ impl FlexContainer {
                 }
             }
             
-            current_cross += line.cross_size;
+            current_cross += effective_line_cross_size;
         }
         
         results

@@ -1,5 +1,6 @@
 pub mod flexbox;
 pub mod positioning;
+pub mod grid;
 
 #[cfg(test)]
 mod flexbox_tests;

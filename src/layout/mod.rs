@@ -1,5 +1,8 @@
 pub mod flexbox;
 
+#[cfg(test)]
+mod flexbox_tests;
+
 use crate::css::{Value, Unit};
 use crate::style::{StyledNode, Display};
 

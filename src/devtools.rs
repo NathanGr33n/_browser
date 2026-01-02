@@ -371,7 +371,8 @@ impl NetworkTab {
         // Maintain max size
         if self.requests.len() > self.max_requests {
             self.requests.remove(0);
-            return self.requests.len() - 1;
+            // After removal, the index is max_requests - 1
+            return self.max_requests - 1;
         }
         
         self.requests.len() - 1

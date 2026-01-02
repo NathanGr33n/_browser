@@ -1,7 +1,7 @@
 // Flexbox layout implementation
 
 use crate::css::{Value, Unit};
-use crate::layout::{Dimensions, Rect};
+use crate::layout::Dimensions;
 use crate::style::StyledNode;
 
 /// Flexbox direction
@@ -92,6 +92,40 @@ pub struct FlexItem {
     pub flex_grow: f32,
     pub flex_shrink: f32,
     pub flex_basis: Option<f32>,
+    pub min_size: Option<f32>,
+    pub max_size: Option<f32>,
+}
+
+/// Internal flex item state during layout calculation
+#[derive(Debug, Clone)]
+struct FlexItemState {
+    /// Base size before flex calculations
+    base_size: f32,
+    /// Hypothetical main size
+    hypothetical_size: f32,
+    /// Final main size after flex
+    main_size: f32,
+    /// Cross size
+    cross_size: f32,
+    /// Flex factor (grow or shrink)
+    flex_factor: f32,
+    /// Is frozen (no longer flexible)
+    frozen: bool,
+    /// Outer main size (including margins)
+    outer_main_size: f32,
+    /// Outer cross size (including margins)
+    outer_cross_size: f32,
+}
+
+/// Flex line containing items
+#[derive(Debug)]
+struct FlexLine {
+    /// Indices of items in this line
+    items: Vec<usize>,
+    /// Main size of the line
+    main_size: f32,
+    /// Cross size of the line
+    cross_size: f32,
 }
 
 impl Default for FlexItem {
@@ -100,6 +134,8 @@ impl Default for FlexItem {
             flex_grow: 0.0,
             flex_shrink: 1.0,
             flex_basis: None,
+            min_size: None,
+            max_size: None,
         }
     }
 }
@@ -181,15 +217,396 @@ impl FlexContainer {
         }
     }
     
-    /// Calculate flexbox layout
+    /// Calculate flexbox layout following CSS Flexbox specification
     pub fn layout(
         &self,
-        _container_dimensions: Dimensions,
-        _items: &[FlexItem],
+        container_dimensions: Dimensions,
+        items: &[FlexItem],
     ) -> Vec<Dimensions> {
-        // Simplified flexbox layout
-        // A full implementation would handle all flexbox properties
-        Vec::new()
+        if items.is_empty() {
+            return Vec::new();
+        }
+
+        // Step 1: Determine main and cross axis dimensions
+        let (main_axis_size, cross_axis_size) = self.get_axis_sizes(&container_dimensions);
+        
+        // Step 2: Initialize flex item states
+        let mut item_states = self.initialize_item_states(items, main_axis_size);
+        
+        // Step 3: Collect items into flex lines
+        let lines = self.collect_flex_lines(&item_states, main_axis_size);
+        
+        // Step 4: Resolve flexible lengths (grow/shrink)
+        let mut line_states = Vec::new();
+        for line in &lines {
+            let line_item_states = self.resolve_flexible_lengths(
+                &mut item_states,
+                items,
+                line,
+                main_axis_size,
+            );
+            line_states.push(line_item_states);
+        }
+        
+        // Step 5: Calculate cross sizes
+        self.calculate_cross_sizes(&mut item_states, &lines, cross_axis_size);
+        
+        // Step 6: Main axis alignment (justify-content)
+        let positioned_items = self.align_main_axis(
+            &item_states,
+            &lines,
+            main_axis_size,
+        );
+        
+        // Step 7: Cross axis alignment (align-items)
+        let final_positions = self.align_cross_axis(
+            positioned_items,
+            &item_states,
+            &lines,
+            cross_axis_size,
+        );
+        
+        // Convert to Dimensions
+        final_positions
+    }
+    
+    /// Get main and cross axis sizes from container dimensions
+    fn get_axis_sizes(&self, container: &Dimensions) -> (f32, f32) {
+        match self.direction {
+            FlexDirection::Row | FlexDirection::RowReverse => {
+                (container.content.width, container.content.height)
+            }
+            FlexDirection::Column | FlexDirection::ColumnReverse => {
+                (container.content.height, container.content.width)
+            }
+        }
+    }
+    
+    /// Initialize flex item states with base sizes
+    fn initialize_item_states(&self, items: &[FlexItem], main_axis_size: f32) -> Vec<FlexItemState> {
+        items
+            .iter()
+            .enumerate()
+            .map(|(idx, item)| {
+                // Determine base size from flex-basis or content size
+                let base_size = item.flex_basis.unwrap_or(0.0);
+                
+                // Calculate hypothetical main size
+                let hypothetical_size = self.clamp_size(
+                    base_size,
+                    item.min_size,
+                    item.max_size,
+                );
+                
+                FlexItemState {
+                    base_size,
+                    hypothetical_size,
+                    main_size: hypothetical_size,
+                    cross_size: 100.0, // Default cross size for items
+                    flex_factor: if hypothetical_size < base_size {
+                        item.flex_shrink
+                    } else {
+                        item.flex_grow
+                    },
+                    frozen: false,
+                    outer_main_size: hypothetical_size,
+                    outer_cross_size: 100.0, // Default cross size for items
+                }
+            })
+            .collect()
+    }
+    
+    /// Clamp size between min and max constraints
+    fn clamp_size(&self, size: f32, min: Option<f32>, max: Option<f32>) -> f32 {
+        let mut result = size;
+        if let Some(min_size) = min {
+            result = result.max(min_size);
+        }
+        if let Some(max_size) = max {
+            result = result.min(max_size);
+        }
+        result
+    }
+    
+    /// Collect items into flex lines based on wrapping
+    fn collect_flex_lines(&self, items: &[FlexItemState], main_axis_size: f32) -> Vec<FlexLine> {
+        if self.wrap == FlexWrap::NoWrap || items.is_empty() {
+            // Single line with all items
+            return vec![FlexLine {
+                items: (0..items.len()).collect(),
+                main_size: items.iter().map(|item| item.outer_main_size).sum(),
+                cross_size: items
+                    .iter()
+                    .map(|item| item.outer_cross_size)
+                    .fold(0.0, f32::max),
+            }];
+        }
+        
+        // Multi-line: break into lines
+        let mut lines = Vec::new();
+        let mut current_line = Vec::new();
+        let mut current_line_size = 0.0;
+        
+        for (idx, item) in items.iter().enumerate() {
+            if current_line_size + item.outer_main_size > main_axis_size && !current_line.is_empty() {
+                // Start new line
+                let line_cross_size: f32 = current_line
+                    .iter()
+                    .map(|i: &usize| items[*i].outer_cross_size)
+                    .fold(0.0_f32, f32::max);
+                
+                lines.push(FlexLine {
+                    items: current_line.clone(),
+                    main_size: current_line_size,
+                    cross_size: line_cross_size,
+                });
+                
+                current_line.clear();
+                current_line_size = 0.0;
+            }
+            
+            current_line.push(idx);
+            current_line_size += item.outer_main_size;
+        }
+        
+        // Add final line
+        if !current_line.is_empty() {
+            let line_cross_size = current_line
+                .iter()
+                .map(|&i| items[i].outer_cross_size)
+                .fold(0.0, f32::max);
+            
+            lines.push(FlexLine {
+                items: current_line,
+                main_size: current_line_size,
+                cross_size: line_cross_size,
+            });
+        }
+        
+        lines
+    }
+    
+    /// Resolve flexible lengths (grow/shrink algorithm)
+    fn resolve_flexible_lengths(
+        &self,
+        item_states: &mut [FlexItemState],
+        items: &[FlexItem],
+        line: &FlexLine,
+        main_axis_size: f32,
+    ) -> Vec<usize> {
+        // Calculate available space
+        let used_space: f32 = line.items.iter().map(|&i| item_states[i].hypothetical_size).sum();
+        let free_space = main_axis_size - used_space;
+        
+        if free_space.abs() < 0.001 {
+            // No flex needed
+            return line.items.clone();
+        }
+        
+        if free_space > 0.0 {
+            // Grow items
+            let total_grow: f32 = line.items.iter()
+                .map(|&i| items[i].flex_grow)
+                .sum();
+            
+            if total_grow > 0.0 {
+                for &item_idx in &line.items {
+                    let original_item = &items[item_idx];
+                    let item_state = &mut item_states[item_idx];
+                    
+                    let grow_factor = original_item.flex_grow / total_grow;
+                    let mut new_size = item_state.hypothetical_size + (free_space * grow_factor);
+                    
+                    // Apply max-size constraint
+                    if let Some(max_size) = original_item.max_size {
+                        new_size = new_size.min(max_size);
+                    }
+                    
+                    // Apply min-size constraint
+                    if let Some(min_size) = original_item.min_size {
+                        new_size = new_size.max(min_size);
+                    }
+                    
+                    item_state.main_size = new_size;
+                    item_state.outer_main_size = item_state.main_size;
+                }
+            }
+        } else {
+            // Shrink items
+            let total_shrink: f32 = line.items.iter()
+                .map(|&i| items[i].flex_shrink)
+                .sum();
+            
+            if total_shrink > 0.0 {
+                for &item_idx in &line.items {
+                    let original_item = &items[item_idx];
+                    let item_state = &mut item_states[item_idx];
+                    
+                    let shrink_factor = original_item.flex_shrink / total_shrink;
+                    let mut new_size = item_state.hypothetical_size + (free_space * shrink_factor);
+                    
+                    // Apply min-size constraint
+                    if let Some(min_size) = original_item.min_size {
+                        new_size = new_size.max(min_size);
+                    }
+                    
+                    item_state.main_size = new_size.max(0.0);
+                    item_state.outer_main_size = item_state.main_size;
+                }
+            }
+        }
+        
+        line.items.clone()
+    }
+    
+    /// Calculate cross sizes for items
+    fn calculate_cross_sizes(
+        &self,
+        items: &mut [FlexItemState],
+        lines: &[FlexLine],
+        cross_axis_size: f32,
+    ) {
+        // For single-line containers, the line cross size should be the container's cross size
+        // For multi-line, each line gets its max item cross size
+        let is_single_line = lines.len() == 1;
+        
+        for line in lines {
+            let effective_line_cross_size = if is_single_line {
+                cross_axis_size
+            } else {
+                line.cross_size
+            };
+            
+            for &item_idx in &line.items {
+                let item = &mut items[item_idx];
+                // Keep item's intrinsic cross size (100.0 default)
+                // This is used for alignment calculations
+                // cross_size stays as-is, but we'll use effective_line_cross_size for line-based calculations
+            }
+        }
+    }
+    
+    /// Align items on main axis (justify-content)
+    fn align_main_axis(
+        &self,
+        items: &[FlexItemState],
+        lines: &[FlexLine],
+        main_axis_size: f32,
+    ) -> Vec<Dimensions> {
+        let mut results = vec![Dimensions::default(); items.len()];
+        
+        for line in lines {
+            let used_space: f32 = line.items.iter().map(|&i| items[i].outer_main_size).sum();
+            let free_space = main_axis_size - used_space;
+            
+            let (mut position, spacing) = match self.justify_content {
+                JustifyContent::FlexStart => (0.0, 0.0),
+                JustifyContent::FlexEnd => (free_space, 0.0),
+                JustifyContent::Center => (free_space / 2.0, 0.0),
+                JustifyContent::SpaceBetween => {
+                    let count = line.items.len();
+                    if count > 1 {
+                        (0.0, free_space / (count - 1) as f32)
+                    } else {
+                        (0.0, 0.0)
+                    }
+                }
+                JustifyContent::SpaceAround => {
+                    let count = line.items.len() as f32;
+                    let gap = free_space / count;
+                    (gap / 2.0, gap)
+                }
+                JustifyContent::SpaceEvenly => {
+                    let count = (line.items.len() + 1) as f32;
+                    let gap = free_space / count;
+                    (gap, gap)
+                }
+            };
+            
+            for &item_idx in &line.items {
+                let item = &items[item_idx];
+                
+                // Set position based on direction
+                match self.direction {
+                    FlexDirection::Row => {
+                        results[item_idx].content.x = position;
+                        results[item_idx].content.width = item.main_size;
+                    }
+                    FlexDirection::RowReverse => {
+                        results[item_idx].content.x = main_axis_size - position - item.main_size;
+                        results[item_idx].content.width = item.main_size;
+                    }
+                    FlexDirection::Column => {
+                        results[item_idx].content.y = position;
+                        results[item_idx].content.height = item.main_size;
+                    }
+                    FlexDirection::ColumnReverse => {
+                        results[item_idx].content.y = main_axis_size - position - item.main_size;
+                        results[item_idx].content.height = item.main_size;
+                    }
+                }
+                
+                position += item.outer_main_size + spacing;
+            }
+        }
+        
+        results
+    }
+    
+    /// Align items on cross axis (align-items)
+    fn align_cross_axis(
+        &self,
+        mut results: Vec<Dimensions>,
+        items: &[FlexItemState],
+        lines: &[FlexLine],
+        cross_axis_size: f32,
+    ) -> Vec<Dimensions> {
+        let mut current_cross = 0.0;
+        let is_single_line = lines.len() == 1;
+        
+        for line in lines {
+            // For single-line containers, use full container cross size
+            // For multi-line, use the line's computed cross size
+            let effective_line_cross_size = if is_single_line {
+                cross_axis_size
+            } else {
+                line.cross_size
+            };
+            
+            for &item_idx in &line.items {
+                let item = &items[item_idx];
+                
+                let cross_position = match self.align_items {
+                    AlignItems::FlexStart => current_cross,
+                    AlignItems::FlexEnd => current_cross + effective_line_cross_size - item.cross_size,
+                    AlignItems::Center => current_cross + (effective_line_cross_size - item.cross_size) / 2.0,
+                    AlignItems::Stretch | AlignItems::Baseline => current_cross,
+                };
+                
+                match self.direction {
+                    FlexDirection::Row | FlexDirection::RowReverse => {
+                        results[item_idx].content.y = cross_position;
+                        results[item_idx].content.height = if self.align_items == AlignItems::Stretch {
+                            effective_line_cross_size
+                        } else {
+                            item.cross_size
+                        };
+                    }
+                    FlexDirection::Column | FlexDirection::ColumnReverse => {
+                        results[item_idx].content.x = cross_position;
+                        results[item_idx].content.width = if self.align_items == AlignItems::Stretch {
+                            effective_line_cross_size
+                        } else {
+                            item.cross_size
+                        };
+                    }
+                }
+            }
+            
+            current_cross += effective_line_cross_size;
+        }
+        
+        results
     }
 }
 
@@ -199,11 +616,15 @@ impl FlexItem {
         let flex_grow = Self::parse_flex_grow(node);
         let flex_shrink = Self::parse_flex_shrink(node);
         let flex_basis = Self::parse_flex_basis(node);
+        let min_size = Self::parse_min_size(node);
+        let max_size = Self::parse_max_size(node);
         
         Self {
             flex_grow,
             flex_shrink,
             flex_basis,
+            min_size,
+            max_size,
         }
     }
     
@@ -223,6 +644,20 @@ impl FlexItem {
     
     fn parse_flex_basis(node: &StyledNode) -> Option<f32> {
         match node.value("flex-basis") {
+            Some(Value::Length(val, Unit::Px)) => Some(*val),
+            _ => None,
+        }
+    }
+    
+    fn parse_min_size(node: &StyledNode) -> Option<f32> {
+        match node.value("min-width") {
+            Some(Value::Length(val, Unit::Px)) => Some(*val),
+            _ => None,
+        }
+    }
+    
+    fn parse_max_size(node: &StyledNode) -> Option<f32> {
+        match node.value("max-width") {
             Some(Value::Length(val, Unit::Px)) => Some(*val),
             _ => None,
         }

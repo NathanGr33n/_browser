@@ -1,5 +1,7 @@
 mod painter;
 mod border_painter;
+mod text_painter;
+mod image_painter;
 pub mod font_manager;
 pub mod glyph_cache;
 pub mod text_renderer;
@@ -14,6 +16,8 @@ use std::sync::Arc;
 
 pub use painter::RectPainter;
 pub use border_painter::BorderPainter;
+pub use text_painter::TextPainter;
+pub use image_painter::ImagePainter;
 use crate::css::Color;
 use crate::layout::Rect;
 

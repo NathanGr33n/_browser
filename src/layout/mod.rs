@@ -1,4 +1,9 @@
 pub mod flexbox;
+pub mod positioning;
+pub mod grid;
+
+#[cfg(test)]
+mod flexbox_tests;
 
 use crate::css::{Value, Unit};
 use crate::style::{StyledNode, Display};
@@ -11,11 +16,12 @@ pub struct LayoutBox<'a> {
     pub children: Vec<LayoutBox<'a>>,
 }
 
-/// Type of box (block, inline, or anonymous)
+/// Type of box (block, inline, flex, or anonymous)
 #[derive(Debug, Clone)]
 pub enum BoxType<'a> {
     BlockNode(&'a StyledNode<'a>),
     InlineNode(&'a StyledNode<'a>),
+    FlexNode(&'a StyledNode<'a>),
     AnonymousBlock,
 }
 
@@ -85,7 +91,7 @@ impl<'a> LayoutBox<'a> {
     /// Get the styled node for this box
     pub fn get_styled_node(&self) -> Option<&'a StyledNode<'a>> {
         match &self.box_type {
-            BoxType::BlockNode(node) | BoxType::InlineNode(node) => Some(node),
+            BoxType::BlockNode(node) | BoxType::InlineNode(node) | BoxType::FlexNode(node) => Some(node),
             BoxType::AnonymousBlock => None,
         }
     }
@@ -94,6 +100,7 @@ impl<'a> LayoutBox<'a> {
     pub fn layout(&mut self, containing_block: Dimensions) {
         match self.box_type {
             BoxType::BlockNode(_) => self.layout_block(containing_block),
+            BoxType::FlexNode(_) => self.layout_flex(containing_block),
             BoxType::InlineNode(_) | BoxType::AnonymousBlock => {
                 // Simplified: treat inline as block for now
                 self.layout_block(containing_block)
@@ -250,6 +257,62 @@ impl<'a> LayoutBox<'a> {
             }
         }
     }
+
+    /// Lay out a flex container
+    fn layout_flex(&mut self, containing_block: Dimensions) {
+        // Calculate width and position (same as block)
+        self.calculate_block_width(containing_block);
+        self.calculate_block_position(containing_block);
+
+        // Get flex container properties
+        let style = match self.get_styled_node() {
+            Some(node) => node,
+            None => return,
+        };
+
+        let flex_container = match flexbox::FlexContainer::from_styled_node(style) {
+            Some(container) => container,
+            None => {
+                // Fallback to block layout if flex parsing fails
+                self.layout_block_children();
+                self.calculate_block_height();
+                return;
+            }
+        };
+
+        // Convert children to flex items
+        let flex_items: Vec<flexbox::FlexItem> = self
+            .children
+            .iter()
+            .filter_map(|child| {
+                child.get_styled_node().map(flexbox::FlexItem::from_styled_node)
+            })
+            .collect();
+
+        // Run flexbox layout algorithm
+        let flex_dimensions = flex_container.layout(self.dimensions, &flex_items);
+
+        // Apply computed dimensions to children
+        for (i, child) in self.children.iter_mut().enumerate() {
+            if i < flex_dimensions.len() {
+                child.dimensions = flex_dimensions[i];
+                // Recursively layout child's children
+                child.layout_block_children();
+            }
+        }
+
+        // Calculate height based on flex layout
+        if flex_dimensions.is_empty() {
+            self.dimensions.content.height = 0.0;
+        } else {
+            // Find max y + height of all children
+            let max_bottom = flex_dimensions
+                .iter()
+                .map(|d| d.content.y + d.content.height)
+                .fold(0.0, f32::max);
+            self.dimensions.content.height = max_bottom;
+        }
+    }
 }
 
 /// Build the layout tree from a styled tree
@@ -269,6 +332,7 @@ pub fn layout_tree<'a>(
 fn build_layout_tree<'a>(style_node: &'a StyledNode<'a>) -> LayoutBox<'a> {
     let mut root = LayoutBox::new(match style_node.display() {
         Display::Block => BoxType::BlockNode(style_node),
+        Display::Flex => BoxType::FlexNode(style_node),
         Display::Inline => BoxType::InlineNode(style_node),
         Display::None => panic!("Root node has display: none"),
     });
@@ -276,6 +340,7 @@ fn build_layout_tree<'a>(style_node: &'a StyledNode<'a>) -> LayoutBox<'a> {
     for child in &style_node.children {
         match child.display() {
             Display::Block => root.children.push(build_layout_tree(child)),
+            Display::Flex => root.children.push(build_layout_tree(child)),
             Display::Inline => {
                 // For simplicity, treat inline as block for now
                 root.children.push(build_layout_tree(child))

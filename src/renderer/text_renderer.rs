@@ -153,6 +153,21 @@ impl TextRenderer {
     pub fn glyph_cache(&self) -> &GlyphCache {
         &self.glyph_cache
     }
+    
+    /// Get mutable glyph cache
+    pub fn glyph_cache_mut(&mut self) -> &mut GlyphCache {
+        &mut self.glyph_cache
+    }
+    
+    /// Get the font manager
+    pub fn font_manager(&self) -> &FontManager {
+        &self.font_manager
+    }
+    
+    /// Get mutable font manager
+    pub fn font_manager_mut(&mut self) -> &mut FontManager {
+        &mut self.font_manager
+    }
 }
 
 impl Default for TextRenderer {

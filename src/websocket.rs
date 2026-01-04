@@ -450,7 +450,8 @@ mod tests {
     #[test]
     fn test_invalid_url() {
         let result = WebSocket::new("http://example.com".to_string());
-        assert_eq!(result, Err(WebSocketError::InvalidUrl));
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), WebSocketError::InvalidUrl);
     }
     
     #[test]

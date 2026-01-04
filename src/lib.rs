@@ -15,3 +15,4 @@ pub mod navigation;
 pub mod forms;
 pub mod devtools;
 pub mod compositor;
+pub mod animation;

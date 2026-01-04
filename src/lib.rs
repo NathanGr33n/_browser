@@ -17,3 +17,4 @@ pub mod devtools;
 pub mod compositor;
 pub mod animation;
 pub mod canvas;
+pub mod storage;

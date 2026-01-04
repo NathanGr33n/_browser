@@ -24,3 +24,4 @@ pub mod observers;
 pub mod performance;
 pub mod fetch;
 pub mod benchmarks;
+pub mod indexeddb;

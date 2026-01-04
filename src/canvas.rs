@@ -1,7 +1,5 @@
 // Canvas 2D API - Phase 7 Task 3
 
-use std::collections::HashMap;
-
 /// Canvas element with 2D drawing context
 pub struct Canvas {
     /// Width in pixels
@@ -554,7 +552,10 @@ impl CanvasRenderingContext2D {
         let mut current_x = 0.0;
         let mut current_y = 0.0;
         
-        for cmd in self.current_path.commands() {
+        // Clone commands to avoid borrow checker issues
+        let commands = self.current_path.commands().to_vec();
+        
+        for cmd in &commands {
             match cmd {
                 PathCommand::MoveTo { x, y } => {
                     current_x = *x;

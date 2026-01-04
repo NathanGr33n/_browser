@@ -22,3 +22,4 @@ pub mod websocket;
 pub mod multiprocess;
 pub mod observers;
 pub mod performance;
+pub mod fetch;

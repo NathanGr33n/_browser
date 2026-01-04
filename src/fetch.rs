@@ -488,7 +488,8 @@ mod tests {
     #[test]
     fn test_invalid_redirect() {
         let result = Response::redirect("https://example.com".to_string(), 200);
-        assert_eq!(result, Err(FetchError::InvalidRedirect));
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), FetchError::InvalidRedirect);
     }
     
     #[test]

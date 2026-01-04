@@ -145,7 +145,7 @@ pub struct PerformanceResourceTiming {
 }
 
 /// Performance measure
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PerformanceMeasure {
     /// Measure name
     pub name: String,
@@ -475,7 +475,8 @@ mod tests {
         let mut perf = Performance::new();
         
         let result = perf.measure("test".to_string(), Some("nonexistent"), None);
-        assert_eq!(result, Err(PerformanceError::MarkNotFound));
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), PerformanceError::MarkNotFound);
     }
     
     #[test]

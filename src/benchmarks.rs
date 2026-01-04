@@ -24,16 +24,16 @@ impl BenchmarkResult {
 
 /// Run a benchmark with the given JavaScript code
 fn run_benchmark(name: &str, code: &str, iterations: usize) -> BenchmarkResult {
-    let mut context = Context::default();
-    
     // Warmup
     for _ in 0..10 {
+        let mut context = Context::default();
         let _ = context.eval(Source::from_bytes(code));
     }
     
-    // Actual benchmark
+    // Actual benchmark - create fresh context each iteration to avoid duplicate declarations
     let start = Instant::now();
     for _ in 0..iterations {
+        let mut context = Context::default();
         context.eval(Source::from_bytes(code)).expect("Benchmark code should execute");
     }
     let duration = start.elapsed();

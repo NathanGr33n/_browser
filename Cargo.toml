@@ -35,3 +35,7 @@ tokio = { version = "1.35", features = ["rt-multi-thread", "macros"] }
 
 # Phase 6: JavaScript engine
 boa_engine = "0.17"
+
+# Phase 8: IndexedDB and serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

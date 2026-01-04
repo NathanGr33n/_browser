@@ -335,6 +335,8 @@ dependencies = [
  "pollster",
  "reqwest",
  "selectors",
+ "serde",
+ "serde_json",
  "string_cache",
  "tokio",
  "unicode-normalization",

@@ -20,3 +20,8 @@ pub mod canvas;
 pub mod storage;
 pub mod websocket;
 pub mod multiprocess;
+pub mod observers;
+pub mod performance;
+pub mod fetch;
+pub mod benchmarks;
+pub mod indexeddb;

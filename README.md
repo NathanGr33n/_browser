@@ -2,7 +2,7 @@
 
 A high-performance, educational browser engine built from scratch in Rust, featuring a complete rendering pipeline from HTML to GPU-accelerated pixels.
 
-[![Tests](https://img.shields.io/badge/tests-220%20passing-brightgreen)]() [![Rust](https://img.shields.io/badge/rust-edition%202021-orange)]() [![License](https://img.shields.io/badge/license-Educational-blue)]()
+[![Tests](https://img.shields.io/badge/tests-277%20passing-brightgreen)]() [![Rust](https://img.shields.io/badge/rust-edition%202021-orange)]() [![License](https://img.shields.io/badge/license-Educational-blue)]()
 
 ## Overview
 
@@ -24,6 +24,10 @@ This browser engine implements the core components of a modern web browser:
 - **Web Storage** with LocalStorage, SessionStorage, and Cookies
 - **WebSocket protocol** with real-time bidirectional communication
 - **Multi-process architecture** with per-tab renderer isolation
+- **DOM Observers** with MutationObserver, IntersectionObserver, and ResizeObserver
+- **Performance APIs** with timing, marks, measures, and resource tracking
+- **Fetch API** with Request/Response objects and CORS handling
+- **IndexedDB** with object stores, indexes, cursors, and transactions
 
 ## Quick Start
 
@@ -177,6 +181,11 @@ src/
 ├── storage/        # LocalStorage, SessionStorage, Cookies
 ├── websocket/      # WebSocket protocol (RFC 6455)
 ├── multiprocess/   # Multi-process architecture with IPC
+├── observers/      # DOM Observers (Mutation, Intersection, Resize)
+├── performance/    # Performance timing and monitoring APIs
+├── fetch/          # Fetch API with CORS and streaming
+├── indexeddb/      # IndexedDB client-side database
+├── benchmarks/     # Boa JavaScript engine benchmarks
 ├── lib.rs          # Library interface
 ├── main.rs         # Demo application
 └── bin/            # Test binaries
@@ -338,7 +347,71 @@ The browser now includes a comprehensive set of modern web features:
 - **3,667 lines** of production code
 - **220 total tests** passing
 
-**Test Coverage**: 220 unit tests passing
+### Phase 8: Advanced JavaScript ✓ COMPLETE
+
+**DOM Observers**
+
+- ✓ MutationObserver for DOM change detection (childList, attributes, characterData, subtree)
+- ✓ IntersectionObserver for viewport intersection tracking with thresholds
+- ✓ ResizeObserver for element size change monitoring
+- ✓ Mutation record batching and observer management
+
+**Performance APIs**
+
+- ✓ High-resolution timing with performance.now()
+- ✓ User Timing API (marks and measures)
+- ✓ Navigation Timing API (21 timing points: DNS, TCP, TLS, DOM events)
+- ✓ Resource Timing API with 150-entry buffer and comprehensive metrics
+- ✓ Memory Info API for JS heap tracking
+
+**Fetch API**
+
+- ✓ Complete async fetch() implementation with RequestInfo enum
+- ✓ Request object (method, headers, body, mode, credentials, cache, redirect)
+- ✓ Response object (status, headers, text/json/bytes consumption)
+- ✓ Headers API with case-insensitive operations
+- ✓ CORS modes (SameOrigin, Cors, NoCors, Navigate)
+- ✓ Redirect handling with status validation (301/302/303/307/308)
+
+**IndexedDB**
+
+- ✓ IDBFactory for database creation/deletion
+- ✓ IDBDatabase with object store management and versioning
+- ✓ IDBObjectStore with CRUD operations (add, put, get, delete, clear, count)
+- ✓ IDBIndex for secondary key queries with unique/multiEntry support
+- ✓ IDBCursor for record iteration (Next, Prev, NextUnique, PrevUnique)
+- ✓ IDBKeyRange for range queries (only, bound, lowerBound, upperBound)
+- ✓ IDBTransaction with ReadOnly, ReadWrite, VersionChange modes
+- ✓ Auto-increment keys and key path support
+- ✓ Serialization with serde for persistence
+
+**JavaScript Performance Benchmarking**
+
+- ✓ Comprehensive Boa engine benchmark suite (8 categories)
+- ✓ Performance analysis showing 361.97 avg ops/sec
+- ✓ Benchmark runner example for performance testing
+
+---
+
+## 🎉 Phase 8 Complete!
+
+The browser now supports advanced JavaScript APIs for rich web applications:
+- **57 new tests added** in Phase 8
+- **5 new modules**: observers, performance, fetch, indexeddb, benchmarks
+- **2,603 lines** of production code  
+- **277 total tests** passing (up from 220)
+
+**Benchmark Results** (release mode, 100 iterations):
+- Array Operations: 92.92 ops/sec
+- Object Operations: 493.72 ops/sec
+- Function Calls: 147.62 ops/sec
+- String Operations: 1,145.04 ops/sec
+- DOM-like Operations: 169.75 ops/sec
+- TodoMVC Pattern: 234.25 ops/sec
+- JSON Operations: 263.24 ops/sec
+- Class Patterns: 349.21 ops/sec
+
+**Test Coverage**: 277 unit tests passing
 
 ## Architecture
 

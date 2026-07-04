@@ -14,8 +14,9 @@
 *~
 .DS_Store
 
-# Warp AI assistant files
+#Design
 WARP.md
+/Docs
 
 # OS-specific files
 Thumbs.db

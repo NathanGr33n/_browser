@@ -1,0 +1,26 @@
+# _Browser — Linux debug build config
+#
+# Usage (from inside the cloned Firefox source tree):
+#   export MOZCONFIG="$PWD/../_browser/fork/mozconfig/mozconfig.linux.debug"
+# or copy this file to the source root as ".mozconfig".
+# The build.sh helper wires this up for you.
+
+# Build the browser application (Firefox chrome layer).
+ac_add_options --enable-application=browser
+
+# Debug build: assertions + debug symbols, no optimization (easier to step through).
+ac_add_options --enable-debug
+ac_add_options --disable-optimize
+
+# Skip building the test harnesses to speed up local dev builds.
+ac_add_options --disable-tests
+
+# Custom _Browser branding. The directory browser/branding/_browser is created
+# by fork/scripts/apply-overlay.sh (seeded from Firefox's "unofficial" branding).
+ac_add_options --with-branding=browser/branding/_browser
+
+# Keep debug artifacts in their own object directory so debug/release don't clash.
+mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/obj-_browser-debug
+
+# Parallelism is auto-detected from CPU count. Uncomment to pin the job count:
+# mk_add_options MOZ_MAKE_FLAGS="-j8"

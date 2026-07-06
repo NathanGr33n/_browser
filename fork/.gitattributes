@@ -1,0 +1,4 @@
+# Everything in this kit is consumed by a Linux Firefox build (shell scripts,
+# mozconfigs, prefs, brand files). Force LF line endings so files work on Linux
+# even when edited or checked out on Windows.
+* text=auto eol=lf

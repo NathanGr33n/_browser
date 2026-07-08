@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="_Browser">
+  <!-- _Browser placeholder mark: indigo badge with an underscore/prompt-cursor motif.
+       Master vector source; PNG icons in this directory are rasterized from this design.
+       Replace with final _Browser artwork when available (keep the same file names). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6D5EF7"/>
+      <stop offset="1" stop-color="#4B3BD6"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bg)"/>
+  <rect x="34.5" y="78" width="59" height="12" rx="6" fill="#F5F5FA"/>
+</svg>

@@ -29,3 +29,9 @@ pref("browser.newtabpage.activity-stream.telemetry", false);
 // Firefox Accounts / Sync not enabled as a default entry point.
 // (Set to true to restore the built-in Sync UI.)
 pref("identity.fxaccounts.enabled", false);
+
+// New tab / home: remove Firefox-branded sponsored + Pocket-story content so the
+// first launch is not Firefox-branded. A full custom new tab page is Phase 2.
+pref("browser.newtabpage.activity-stream.showSponsored", false);
+pref("browser.newtabpage.activity-stream.showSponsoredTopSites", false);
+pref("browser.newtabpage.activity-stream.feeds.section.topstories", false);
